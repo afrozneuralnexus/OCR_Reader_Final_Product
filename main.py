@@ -12,8 +12,6 @@ from datetime import datetime
 import os
 import pickle
 from sklearn.feature_extraction.text import TfidfVectorizer
-import io
-import tempfile
 import shutil
 
 # Configure Tesseract path for different environments
@@ -96,10 +94,11 @@ def enhance_image_quality(image):
 
 def extract_text_from_image(image):
     """Enhanced text extraction with multiple OCR configurations"""
+    # Try different PSM modes for better results
     configs = [
-        r'--oem 3 --psm 6',
-        r'--oem 3 --psm 4',
-        r'--oem 3 --psm 3',
+        r'--oem 3 --psm 6',  # Uniform block of text
+        r'--oem 3 --psm 4',  # Single column of text
+        r'--oem 3 --psm 3',  # Fully automatic page segmentation
     ]
 
     best_text = ""
@@ -149,12 +148,13 @@ def extract_date_of_issue(text):
         r'Issue\s*Date\s*:?\s*(\d{1,2}[/-]\d{1,2}[/-]\d{4})',
         r'Date\s*:?\s*(\d{1,2}[/-]\d{1,2}[/-]\d{4})',
         r'Date\s+of\s+issue\s*:?\s*(\d{1,2}[/-]\d{1,2}[/-]\d{4})',
-        r'(\d{1,2}[/-]\d{1,2}[/-]\d{4})'
+        r'(\d{1,2}[/-]\d{1,2}[/-]\d{4})'  # General date pattern
     ]
 
     for pattern in patterns:
         matches = re.findall(pattern, text, re.IGNORECASE)
         if matches:
+            # Prioritize dates appearing near "date" or "issue" keywords
             for match in matches:
                 match_start = text.find(match)
                 if match_start != -1:
@@ -165,6 +165,7 @@ def extract_date_of_issue(text):
                         return match
             return matches[0]
 
+    # Try looking line by line for "date of issue" keyword
     lines = text.split('\n')
     for i, line in enumerate(lines):
         if 'date of issue' in line.lower() or 'issue date' in line.lower():
@@ -182,10 +183,12 @@ def extract_seller_info(text):
     seller_name = ""
     seller_address = ""
 
+    # Look for "Seller:" section
     seller_match = re.search(r'Seller\s*:?\s*\n\s*([^\n]+)', text, re.IGNORECASE)
     if seller_match:
         seller_name = seller_match.group(1).strip()
 
+        # Try to get address lines after seller name
         lines = text.split('\n')
         seller_idx = -1
         for i, line in enumerate(lines):
@@ -210,10 +213,12 @@ def extract_client_info(text):
     client_name = ""
     client_address = ""
 
+    # Look for "Client:" section
     client_match = re.search(r'Client\s*:?\s*\n\s*([^\n]+)', text, re.IGNORECASE)
     if client_match:
         client_name = client_match.group(1).strip()
 
+        # Try to get address lines after client name
         lines = text.split('\n')
         client_idx = -1
         for i, line in enumerate(lines):
@@ -242,12 +247,15 @@ def extract_summary_totals(text):
 
     lines = text.split('\n')
 
+    # Find VAT percentage - improved
     for i, line in enumerate(lines):
         if 'vat' in line.lower():
+            # Look for percentage on the same line
             percent_match_line = re.search(r'(\d+)\s*%', line)
             if percent_match_line:
                 vat_percent = percent_match_line.group(1) + "%"
                 break
+            # If not found on the same line, look in the next few lines
             for j in range(i + 1, min(i + 4, len(lines))):
                 percent_match_next = re.search(r'(\d+)\s*%', lines[j])
                 if percent_match_next:
@@ -256,8 +264,10 @@ def extract_summary_totals(text):
             if vat_percent:
                 break
 
+    # Find the totals row(s) - more robust approach
     for line in lines:
         if 'total' in line.lower():
+            # Regex to capture three monetary values
             match = re.search(r'total.*?(?:\$?\s*([\d\s,]+\.?\d+))\s+(?:\$?\s*([\d\s,]+\.?\d+))\s+(?:\$?\s*([\d\s,]+\.?\d+))', line, re.IGNORECASE)
             if match:
                 net_worth = "$" + match.group(1).replace(" ", "").strip()
@@ -265,17 +275,21 @@ def extract_summary_totals(text):
                 gross_worth = "$" + match.group(3).replace(" ", "").strip()
                 break
 
+    # If not found in a single "Total" line, try searching for labels
     if not (net_worth and vat_amount and gross_worth):
         text_lower = text.lower()
 
+        # Search for Net Worth
         net_match = re.search(r'(?:net\s*worth|amount\s*due)\s*[:\s]*\$?([\d\s,]+\.?\d+)', text_lower)
         if net_match:
             net_worth = "$" + net_match.group(1).replace(" ", "").strip()
 
+        # Search for VAT Amount (excluding VAT percentage context)
         vat_amount_match = re.search(r'\bvat\b(?!\s*[%])\s*[:\s]*\$?([\d\s,]+\.?\d+)', text_lower)
         if vat_amount_match:
             vat_amount = "$" + vat_amount_match.group(1).replace(" ", "").strip()
 
+        # Search for Gross Worth or Total Amount
         gross_match = re.search(r'(?:gross\s*worth|total\s*amount)\s*[:\s]*\$?([\d\s,]+\.?\d+)', text_lower)
         if gross_match:
             gross_worth = "$" + gross_match.group(1).replace(" ", "").strip()
@@ -350,9 +364,11 @@ def process_invoice(image_file, processor=None):
     text_contrast, _ = extract_text_from_image(contrast_enhanced)
     text_gray, _ = extract_text_from_image(gray_image)
 
+    # Use the best result
     texts = [text_binary, text_contrast, text_gray]
     final_text = max(texts, key=len)
 
+    # Extract all information
     invoice_no = extract_invoice_number(final_text)
     date_of_issue = extract_date_of_issue(final_text)
     seller = extract_seller_info(final_text)
@@ -417,6 +433,7 @@ def main():
     st.set_page_config(page_title="Invoice Processing System", page_icon="📄", layout="wide")
     
     st.title("📄 Invoice Processing System")
+    st.markdown("**Extract structured data from invoice images using advanced OCR**")
     st.markdown("---")
     
     # Initialize session state
@@ -470,6 +487,8 @@ def main():
     
     with tab1:
         st.header("Upload Invoice Images")
+        st.markdown("Upload one or more invoice images (PNG, JPG, JPEG, TIFF, BMP)")
+        
         uploaded_files = st.file_uploader(
             "Choose invoice images...", 
             type=['png', 'jpg', 'jpeg', 'tiff', 'bmp'],
@@ -477,7 +496,7 @@ def main():
         )
         
         if uploaded_files:
-            if st.button("🔄 Process Invoices", type="primary"):
+            if st.button("🔄 Process Invoices", type="primary", use_container_width=True):
                 all_results = []
                 
                 progress_bar = st.progress(0)
@@ -487,6 +506,9 @@ def main():
                     status_text.text(f"Processing: {uploaded_file.name}")
                     
                     try:
+                        # Reset file pointer
+                        uploaded_file.seek(0)
+                        
                         # Process invoice
                         results = process_invoice(uploaded_file, st.session_state.processor)
                         all_results.append(results)
@@ -549,6 +571,8 @@ def main():
                     
                     st.success(f"✅ Processed {len(all_results)} invoices successfully!")
                     st.balloons()
+        else:
+            st.info("👆 Upload invoice images to get started")
     
     with tab2:
         st.header("Invoice Database")
