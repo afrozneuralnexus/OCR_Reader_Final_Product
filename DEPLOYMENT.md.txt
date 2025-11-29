@@ -1,0 +1,190 @@
+# Deploying to Streamlit Cloud
+
+## Required Files
+
+Make sure your repository has these files in the root directory:
+
+```
+your-repo/
+├── main.py                    # Main application file
+├── requirements.txt           # Python dependencies
+├── packages.txt              # System dependencies (IMPORTANT!)
+└── .streamlit/
+    └── config.toml           # Streamlit configuration (optional)
+```
+
+## Step-by-Step Deployment
+
+### 1. Verify `packages.txt` exists
+
+Create a file named `packages.txt` in your repository root with this exact content:
+
+```
+tesseract-ocr
+libtesseract-dev
+```
+
+This tells Streamlit Cloud to install Tesseract OCR system package.
+
+### 2. Verify `requirements.txt`
+
+Your `requirements.txt` should have these packages:
+
+```
+streamlit>=1.31.0
+numpy>=1.26.0
+opencv-python-headless>=4.8.0.76
+matplotlib>=3.8.0
+pytesseract>=0.3.10
+scikit-image>=0.22.0
+Pillow>=10.0.0
+pandas>=2.1.0
+openpyxl>=3.1.2
+scikit-learn>=1.3.0
+joblib>=1.3.2
+```
+
+### 3. Push to GitHub
+
+```bash
+git add .
+git commit -m "Add Tesseract configuration for Streamlit Cloud"
+git push origin main
+```
+
+### 4. Deploy on Streamlit Cloud
+
+1. Go to [share.streamlit.io](https://share.streamlit.io)
+2. Click "New app"
+3. Select your repository
+4. Set main file path: `main.py`
+5. Click "Deploy"
+
+### 5. Wait for Deployment
+
+The deployment process will:
+- ✅ Install system packages from `packages.txt` (Tesseract)
+- ✅ Install Python packages from `requirements.txt`
+- ✅ Start your application
+
+This typically takes 2-5 minutes.
+
+## Troubleshooting
+
+### Error: "tesseract is not installed"
+
+**Cause:** `packages.txt` file is missing or not in the root directory.
+
+**Solution:**
+1. Create `packages.txt` in your repository root
+2. Add the two lines shown above
+3. Commit and push
+4. Go to Streamlit Cloud dashboard → Click "Reboot app"
+
+### Error: "ModuleNotFoundError: No module named 'distutils'"
+
+**Cause:** Old numpy version incompatible with Python 3.13
+
+**Solution:**
+1. Update `requirements.txt` to use `numpy>=1.26.0`
+2. Commit and push
+3. Reboot the app
+
+### Error: "Failed to download and build numpy"
+
+**Cause:** Version constraints too strict
+
+**Solution:**
+1. Change `==` to `>=` in requirements.txt for all packages
+2. This allows pip to find compatible versions automatically
+
+### App is slow or times out
+
+**Solutions:**
+- Reduce image size before uploading
+- Process fewer images at once
+- Images should be under 5MB each
+
+### OCR accuracy is poor
+
+**Causes & Solutions:**
+- Low image quality → Upload higher resolution scans (300 DPI+)
+- Image is rotated → Rotate to correct orientation before upload
+- Poor lighting → Use well-lit, clear scans
+- Handwritten text → OCR works best with printed text
+
+## Checking Deployment Status
+
+### In Streamlit Cloud Dashboard:
+1. Click "Manage app"
+2. Check the "Logs" tab
+3. Look for these success messages:
+   - `✅ Tesseract OCR installed`
+   - `✅ All packages installed`
+   - `🚀 App is ready`
+
+### In Your App:
+1. Check the sidebar
+2. Should show: `✅ Tesseract [version]`
+3. If you see `❌ Tesseract not found`, reboot the app
+
+## File Structure in Repository
+
+```
+ocr_reader_final_product/
+│
+├── main.py                    # ✅ Your main application
+├── requirements.txt           # ✅ Python dependencies
+├── packages.txt              # ✅ System dependencies (CRITICAL!)
+├── README.md                 # ✅ Documentation
+├── DEPLOYMENT.md             # ✅ This file
+│
+├── .streamlit/               # Optional configuration
+│   └── config.toml           # App theme and settings
+│
+└── .gitignore                # Recommended
+    # Add these lines:
+    # invoices_database.xlsx
+    # invoice_processor_model.pkl
+    # *.pyc
+    # __pycache__/
+```
+
+## After Successful Deployment
+
+1. **Test the app:**
+   - Upload a sample invoice
+   - Verify OCR extraction works
+   - Check database functionality
+
+2. **Share the URL:**
+   - Your app URL will be: `https://[app-name].streamlit.app`
+   - Share with your team!
+
+3. **Monitor usage:**
+   - Check logs regularly
+   - Monitor processing times
+   - Review any errors
+
+## Support
+
+If you continue to have issues:
+
+1. Check Streamlit Cloud status: [status.streamlit.io](https://status.streamlit.io)
+2. Review logs in "Manage app" → "Logs" tab
+3. Try "Reboot app" button
+4. Check [Streamlit Community Forums](https://discuss.streamlit.io)
+
+## Quick Fixes
+
+| Problem | Quick Fix |
+|---------|-----------|
+| Tesseract error | Add `packages.txt` and reboot |
+| Import errors | Update `requirements.txt` versions |
+| Slow processing | Reduce image sizes |
+| Memory errors | Process fewer images at once |
+| App won't start | Check logs for specific error |
+
+---
+
+**Remember:** The `packages.txt` file is crucial for Tesseract to work on Streamlit Cloud! 🚨
